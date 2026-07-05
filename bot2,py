@@ -1,0 +1,98 @@
+import telebot
+
+TOKEN = "8937009997:AAEqsEESThwaObAZuuKa0B7kei_zvU1URdk"
+bot = telebot.TeleBot(TOKEN)
+
+user_data = {}
+
+@bot.message_handler(commands=['start'])
+def start(message):
+    user_data[message.chat.id] = {"step": 0}
+    bot.send_message(message.chat.id, "Привет! Я рассчитаю твою норму калорий.\nУкажи свой пол: М или Ж")
+
+@bot.message_handler(func=lambda m: True)
+def talk(message):
+    uid = message.chat.id
+    text = message.text.upper()
+
+    if uid not in user_data:
+        user_data[uid] = {"step": 0}
+
+    step = user_data[uid]["step"]
+
+    if step == 0:
+        if text in ["М", "M"]:
+            user_data[uid]["gender"] = "мужчина"
+            user_data[uid]["step"] = 1
+            bot.send_message(uid, "Введи вес (кг):")
+        elif text in ["Ж", "F"]:
+            user_data[uid]["gender"] = "женщина"
+            user_data[uid]["step"] = 1
+            bot.send_message(uid, "Введи вес (кг):")
+        else:
+            bot.send_message(uid, "Введи М или Ж")
+
+    elif step == 1:
+        try:
+            user_data[uid]["weight"] = float(text)
+            user_data[uid]["step"] = 2
+            bot.send_message(uid, "Введи рост (см):")
+        except:
+            bot.send_message(uid, "Введи число, например 70")
+
+    elif step == 2:
+        try:
+            user_data[uid]["height"] = float(text)
+            user_data[uid]["step"] = 3
+            bot.send_message(uid, "Введи возраст:")
+        except:
+            bot.send_message(uid, "Введи число, например 170")
+
+    elif step == 3:
+        try:
+            user_data[uid]["age"] = int(text)
+            user_data[uid]["step"] = 4
+            bot.send_message(uid, "Активность:\n1 — сидячая\n2 — 1-3 тренировки в неделю\n3 — 3-5 тренировок\n4 — каждый день\nВведи цифру 1-4:")
+        except:
+            bot.send_message(uid, "Введи число, например 25")
+
+    elif step == 4:
+        factors = {"1": 1.2, "2": 1.375, "3": 1.55, "4": 1.725}
+        if text in factors:
+            user_data[uid]["activity"] = factors[text]
+            user_data[uid]["step"] = 5
+            bot.send_message(uid, "Цель:\n1 — Похудение\n2 — Поддержание\n3 — Набор массы\nВведи цифру 1-3:")
+        else:
+            bot.send_message(uid, "Введи цифру от 1 до 4")
+
+    elif step == 5:
+        goals = {"1": (0.85, "Похудение"), "2": (1.0, "Поддержание"), "3": (1.15, "Набор массы")}
+        if text in goals:
+            g = user_data[uid]["gender"]
+            w = user_data[uid]["weight"]
+            h = user_data[uid]["height"]
+            a = user_data[uid]["age"]
+            act = user_data[uid]["activity"]
+            goal_factor, goal_name = goals[text]
+
+            if g == "мужчина":
+                bmr = (10 * w) + (6.25 * h) - (5 * a) + 5
+            else:
+                bmr = (10 * w) + (6.25 * h) - (5 * a) - 161
+
+            calories = bmr * act * goal_factor
+            protein = w * 1.8
+            fat = w * 0.9
+            carbs = (calories - protein * 4 - fat * 9) / 4
+
+            result = f"Твоя норма: {calories:.0f} ккал\n"
+            result += f"Белки: {protein:.0f} г\nЖиры: {fat:.0f} г\nУглеводы: {carbs:.0f} г\n"
+            result += f"Цель: {goal_name}\n\n"
+            result += "Хочешь готовый план питания на день? 390 руб.\nНапиши МЕНЮ"
+
+            bot.send_message(uid, result)
+            user_data[uid] = {"step": 0}
+        else:
+            bot.send_message(uid, "Введи цифру от 1 до 3")
+
+bot.polling(none_stop=True)
